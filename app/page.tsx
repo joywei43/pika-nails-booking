@@ -1,58 +1,44 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import liff from '@line/liff'
+import { useEffect, useState } from 'react';
+import liff from '@line/liff';
 
-export default function Home() {
-  const [lineName, setLineName] = useState('')
-  const [ready, setReady] = useState(false)
+export default function Page() {
+  const [lineName, setLineName] = useState('');
 
   useEffect(() => {
     const initLiff = async () => {
       try {
         await liff.init({
-          liffId: '2008710921-W2J0NDPB', // ✅ 你的新 LIFF ID
-        })
+          liffId: '2008710921-W2J0NDPB',
+        });
 
         if (!liff.isLoggedIn()) {
-          liff.login()
-          return
+          liff.login();
+          return;
         }
 
-        const profile = await liff.getProfile()
-        setLineName(profile.displayName)
-        setReady(true)
+        const profile = await liff.getProfile();
+        setLineName(profile.displayName);
       } catch (err) {
-        console.error('LIFF init failed', err)
+        console.error('LIFF init failed', err);
       }
-    }
+    };
 
-    initLiff()
-  }, [])
-
-  if (!ready) {
-    return (
-      <main style={{ color: 'white', padding: 40 }}>
-        LIFF loading...
-      </main>
-    )
-  }
+    initLiff();
+  }, []);
 
   return (
-    <main style={{ color: 'white', padding: 40 }}>
+    <main style={{ padding: 24 }}>
       <h1>線上預約</h1>
 
-      <label>LINE 顯示名稱 *</label>
+      <label>LINE 顯示名稱</label>
       <input
         value={lineName}
         readOnly
-        style={{
-          display: 'block',
-          marginTop: 8,
-          padding: 8,
-          width: '100%',
-        }}
+        placeholder="從 LINE 自動帶入"
+        style={{ width: '100%', padding: 8, marginTop: 8 }}
       />
     </main>
-  )
+  );
 }
