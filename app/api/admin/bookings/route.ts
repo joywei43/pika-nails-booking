@@ -1,37 +1,42 @@
-// app/api/admin/bookings/route.ts
-import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseClient';
+import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { pushLineMessage } from '@/lib/line'
 
-export async function GET() {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('bookings')
-      .select(
-        `
-        id,
-        date,
-        time,
-        style,
-        need_removal,
-        status,
-        created_at,
-        customers (
-          line_name,
-          phone
-        )
-      `
-      )
-      .order('date', { ascending: true })
-      .order('time', { ascending: true });
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-    if (error) throw error;
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  const bookingId = params.id
+  const body = await req.json()
 
-    return NextResponse.json({ bookings: data });
-  } catch (err) {
-    console.error('Load bookings error', err);
-    return NextResponse.json(
-      { error: '載入預約失敗' },
-      { status: 500 }
-    );
+  // 1️⃣ 更新預約狀態
+  const { data, error } = await supabase
+    .from('bookings')
+    .update(body)
+    .eq('id', bookingId)
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // 2️⃣ 只有「審核通過」才送 LINE
+  if (body.approved === true && data.line_user_id) {
+    try {
+      await pushLineMessage(
+        data.line_user_id,
+        `✨ 您在 PIKA NAILS 的預約已確認成功！\n\n日期：${data.date}\n時間：${data.time}\n\n期待為您服務 💅`
+      )
+    } catch (err) {
+      console.error('LINE 推播失敗:', err)
+    }
+  }
+
+  return NextResponse.json({ success: true, data })
 }
