@@ -8,45 +8,36 @@ export default function Page() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    const initLiff = async () => {
-      try {
-        await liff.init({ liffId: '2008710921-W2J0NDPB' })
+    const run = async () => {
+      await liff.init({ liffId: '2008710921-W2J0NDPB' })
 
-        // 🔥 關鍵 1：一定要在 LIFF 裡
-        if (!liff.isInClient()) {
-          document.body.innerHTML = `
-            <div style="padding:40px;font-size:18px">
-              ⚠️ 請從 LINE 圖文選單進入預約
-            </div>
-          `
-          return
-        }
-
-        // 🔥 關鍵 2：沒登入就登入
-        if (!liff.isLoggedIn()) {
-          liff.login()
-          return
-        }
-
-        // 🔥 關鍵 3：拿 profile
-        const profile = await liff.getProfile()
-        setLineName(profile.displayName)
-        setReady(true)
-      } catch (err) {
-        console.error(err)
+      // ✅ 不是在 LINE 裡 → 直接顯示錯誤
+      if (!liff.isInClient()) {
+        alert('請從 LINE 圖文選單開啟')
+        return
       }
+
+      if (!liff.isLoggedIn()) {
+        liff.login()
+        return
+      }
+
+      const profile = await liff.getProfile()
+      setLineName(profile.displayName)
+      setReady(true)
     }
 
-    initLiff()
+    run().catch(console.error)
   }, [])
 
-  if (!ready) return null
+  if (!ready) return <p style={{ color: 'white' }}>LIFF 初始化中…</p>
 
   return (
     <input
       value={lineName}
       readOnly
       placeholder="LINE 顯示名稱"
+      style={{ padding: 12, fontSize: 16 }}
     />
   )
 }
