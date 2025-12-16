@@ -1,62 +1,61 @@
-// app/api/admin/bookings/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseClient';
 
-// 給 TypeScript 用的型別
-type RouteParams = { id: string };
-
 export async function PATCH(
   req: Request,
-  context: { params: RouteParams } | { params: Promise<RouteParams> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    // 👉 這裡處理「params 可能是 Promise」的情況
-    const rawParams = (context as any).params;
-    const resolvedParams: RouteParams =
-      typeof rawParams?.then === 'function'
-        ? await rawParams
-        : rawParams;
-
-    const { id } = resolvedParams || {};
+    const { id } = params;
+    const { status } = await req.json();
 
     if (!id) {
-      return NextResponse.json(
-        { error: '缺少預約 ID（id 為 undefined）' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: '缺少 booking id' }, { status: 400 });
     }
 
-    const body = await req.json();
-    const { status } = body as { status?: string };
-
-    const allowed = ['pending', 'confirmed', 'cancelled'];
-    if (!status || !allowed.includes(status)) {
-      return NextResponse.json(
-        { error: '不合法的狀態' },
-        { status: 400 }
-      );
+    if (status !== 'confirmed') {
+      return NextResponse.json({ error: '只處理 confirmed 狀態' }, { status: 400 });
     }
 
-    // 用 service role 更新 bookings.status
-    const { error } = await supabaseAdmin
+    // 1️⃣ 更新 booking 狀態
+    const { data: booking, error: updateError } = await supabaseAdmin
       .from('bookings')
-      .update({ status })
-      .eq('id', id);
+      .update({ status: 'confirmed' })
+      .eq('id', id)
+      .select()
+      .single();
 
-    if (error) {
-      console.error('Supabase update error:', error);
-      return NextResponse.json(
-        { error: error.message || 'Supabase 更新失敗' },
-        { status: 500 }
-      );
+    if (updateError || !booking) {
+      return NextResponse.json({ error: '更新失敗' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    console.error('Update booking status error:', err);
-    return NextResponse.json(
-      { error: err.message || '更新預約狀態失敗' },
-      { status: 500 }
-    );
+    // 2️⃣ 取得 LINE userId
+    const lineUserId = booking.line_user_id;
+    if (!lineUserId) {
+      return NextResponse.json({ error: '找不到 LINE user id' }, { status: 400 });
+    }
+
+    // 3️⃣ 推播 LINE 訊息
+    await fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        to: lineUserId,
+        messages: [
+          {
+            type: 'text',
+            text: '✅ 您的美甲預約已確認成功，期待為您服務 💅',
+          },
+        ],
+      }),
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
