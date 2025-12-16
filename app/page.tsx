@@ -4,40 +4,59 @@ import { useEffect, useState } from 'react'
 import liff from '@line/liff'
 
 export default function Page() {
+  const [status, setStatus] = useState('初始化中...')
   const [lineName, setLineName] = useState('')
-  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     const run = async () => {
-      await liff.init({ liffId: '2008710921-W2J0NDPB' })
+      try {
+        setStatus('liff.init()')
 
-      // ✅ 不是在 LINE 裡 → 直接顯示錯誤
-      if (!liff.isInClient()) {
-        alert('請從 LINE 圖文選單開啟')
-        return
+        await liff.init({
+          liffId: '2008710921-W2J0NDPB',
+        })
+
+        setStatus('init 完成')
+
+        // ❗ 關鍵：確認是不是 LIFF 環境
+        if (!liff.isInClient()) {
+          setStatus('❌ 不是從 LINE 內開啟')
+          return
+        }
+
+        setStatus('在 LINE 內')
+
+        if (!liff.isLoggedIn()) {
+          setStatus('尚未登入，導向 login')
+          liff.login()
+          return
+        }
+
+        setStatus('已登入，讀取 profile')
+
+        const profile = await liff.getProfile()
+        setLineName(profile.displayName)
+
+        setStatus('✅ 成功取得名稱')
+      } catch (err) {
+        console.error(err)
+        setStatus('❌ 發生錯誤，請看 console')
       }
-
-      if (!liff.isLoggedIn()) {
-        liff.login()
-        return
-      }
-
-      const profile = await liff.getProfile()
-      setLineName(profile.displayName)
-      setReady(true)
     }
 
-    run().catch(console.error)
+    run()
   }, [])
 
-  if (!ready) return <p style={{ color: 'white' }}>LIFF 初始化中…</p>
-
   return (
-    <input
-      value={lineName}
-      readOnly
-      placeholder="LINE 顯示名稱"
-      style={{ padding: 12, fontSize: 16 }}
-    />
+    <div style={{ padding: 20 }}>
+      <p>{status}</p>
+
+      <input
+        value={lineName}
+        placeholder="LINE 顯示名稱"
+        readOnly
+        style={{ width: '100%', padding: 8 }}
+      />
+    </div>
   )
 }
